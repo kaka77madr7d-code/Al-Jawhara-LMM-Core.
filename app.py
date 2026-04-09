@@ -1,175 +1,163 @@
-"""
-Al-Jawhara LMM — Single File Demo (Render Optimized)
-"""
-from __future__ import annotations
-import re
-from enum import Enum, auto
-from dataclasses import dataclass
-from typing import FrozenSet
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
-# ══════════════════════════════════════════════════════
-# § 1 — المُحلِّل الصرفي
-# ══════════════════════════════════════════════════════
-
-CONSONANTS = set("بتثجحخدذرزسشصضطظعغفقكلمنهوي")
-SLOT_CHARS  = set("فعل")
-
-PATTERNS = {
-    "فَعَلَ": {"tag":"FAL"},
-    "فَعَّلَ": {"tag":"FALLAL"},
-    "فَاعَلَ": {"tag":"FA_AL"},
-    "أَفْعَلَ": {"tag":"AF_AL"},
-    "تَفَعَّلَ": {"tag":"TAFA_AL"},
-    "تَفَاعَلَ": {"tag":"TAFAA_AL"},
-    "انْفَعَلَ": {"tag":"INFA_AL"},
-    "افْتَعَلَ": {"tag":"IFTA_AL"},
-    "اسْتَفْعَلَ": {"tag":"ISTAF_AL"},
-    "فَاعِل": {"tag":"FA_IL"},
-    "مُفَعِّل": {"tag":"MUFA_IL"},
-    "يُفَعِّل": {"tag":"YUFA_IL"},
-    "مَفْعُول": {"tag":"MAF_UL"},
-}
-
-def _norm(w: str) -> str:
-    w = re.sub(r"[\u064B-\u065F\u0670]", "", w)
-    w = re.sub(r"[\u0625\u0623\u0622]", "\u0627", w)
-    return w.replace("\u0629", "\u0647")
-
-def _slot_match(word: str, pat: str) -> bool:
-    wn, pn = _norm(word), _norm(pat)
-    if len(wn) != len(pn): return False
-    for wc, pc in zip(wn, pn):
-        if pc in SLOT_CHARS:
-            if wc not in CONSONANTS: return False
-        elif wc != pc: return False
-    return True
-
-def detect_pattern(word: str):
-    for pat, info in PATTERNS.items():
-        if _slot_match(word, pat):
-            return pat, info
-    return None, None
-
-def extract_root(word: str) -> str:
-    w = _norm(word)
-    return w[:3] if len(w) >= 3 else w
-
-@dataclass
-class MorphUnit:
-    original: str
-    root: str
-    pattern: str | None
-    tag: str | None
-    position: int
-
-def distill(sentence: str):
-    units = []
-    for i, word in enumerate(sentence.split()):
-        root = extract_root(word)
-        pat, info = detect_pattern(word)
-        units.append(MorphUnit(word, root, pat, info["tag"] if info else None, i))
-    return units
-
-# ══════════════════════════════════════════════════════
-# § 2 — الاستدلال
-# ══════════════════════════════════════════════════════
-
-class P(Enum):
-    TRANSITIVE=auto()
-    RECIPROCAL=auto()
-    STATEFUL=auto()
-
-TAG_PROPS = {
-    "FAL": frozenset({P.TRANSITIVE}),
-    "FA_AL": frozenset({P.RECIPROCAL}),
-}
-
-def infer(tag):
-    if not tag:
-        return "UNKNOWN"
-    if tag == "FA_AL":
-        return "NETWORK_SOCKET"
-    if tag == "FAL":
-        return "FUNCTION"
-    return "UNKNOWN"
-
-# ══════════════════════════════════════════════════════
-# § 3 — API
-# ══════════════════════════════════════════════════════
+import re
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# =========================
+# 🧠 Data Structures
+# =========================
 
 class AnalyzeRequest(BaseModel):
     sentence: str
 
+class Unit:
+    def __init__(self, original, root, pattern, tag):
+        self.original = original
+        self.root = root
+        self.pattern = pattern
+        self.tag = tag
+
+# =========================
+# 🔬 Linguistic Rules
+# =========================
+
+TAG_PROPS = {
+    "FA_AL": ["RECIPROCAL", "BINARY"],
+    "UNKNOWN": []
+}
+
+def extract_root(word):
+    # تبسيط شديد (تقدرين تطورينه)
+    return word[:3] if len(word) >= 3 else word
+
+def detect_pattern(word):
+    if len(word) == 4 and word[1] == "ا":
+        return "فاعل", "FA_AL"
+    return None, "UNKNOWN"
+
+def distill(sentence):
+    words = sentence.split()
+    units = []
+
+    for w in words:
+        root = extract_root(w)
+        pattern, tag = detect_pattern(w)
+        units.append(Unit(w, root, pattern, tag))
+
+    return units
+
+# =========================
+# 🤖 Inference Engine
+# =========================
+
+def infer(tag):
+    if tag == "FA_AL":
+        return "NETWORK_SOCKET"
+    return "UNKNOWN_TASK"
+
+# =========================
+# 🌐 API
+# =========================
+
 @app.post("/api/analyze")
 async def analyze(req: AnalyzeRequest):
     units = distill(req.sentence)
-    result = []
+    results = []
+
     for u in units:
-        task = infer(u.tag)
-        result.append({
+        props = TAG_PROPS.get(u.tag, [])
+
+        results.append({
             "word": u.original,
             "root": u.root,
-            "task": task
+            "pattern": u.pattern,
+            "tag": u.tag,
+            "properties": props,
+            "task": infer(u.tag)
         })
-    return {"results": result}
 
-# ══════════════════════════════════════════════════════
-# § 4 — واجهة تفاعلية 🔥
-# ══════════════════════════════════════════════════════
+    return {"results": results}
 
-HTML_CONTENT = """
-<!DOCTYPE html>
-<html lang="ar">
-<head>
-<meta charset="UTF-8">
-<title>Al-Jawhara LMM</title>
-</head>
-<body style="font-family: Arial; text-align: center; margin-top: 50px;">
+# =========================
+# 🎨 Frontend (HTML)
+# =========================
 
-<h2>Al-Jawhara LMM 🚀</h2>
+@app.get("/")
+async def home():
+    return """
+    <html>
+    <head>
+        <title>LMM System</title>
+        <style>
+            body {
+                font-family: Arial;
+                background: #0f172a;
+                color: white;
+                text-align: center;
+                padding: 40px;
+            }
+            textarea {
+                width: 80%;
+                height: 100px;
+                font-size: 18px;
+                margin: 10px;
+            }
+            button {
+                padding: 10px 20px;
+                font-size: 18px;
+                cursor: pointer;
+            }
+            pre {
+                text-align: left;
+                background: #1e293b;
+                padding: 20px;
+                margin-top: 20px;
+                white-space: pre-wrap;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🧠 LMM Linguistic Engine</h1>
 
-<input id="inputText" placeholder="اكتب جملة..." style="width:300px; padding:10px;">
-<br><br>
-<button onclick="analyze()">تحليل</button>
+        <textarea id="inputText" placeholder="اكتب جملة..."></textarea><br>
+        <button onclick="analyze()">تحليل</button>
 
-<pre id="output" style="margin-top:20px; text-align:left;"></pre>
+        <pre id="output"></pre>
 
-<script>
-async function analyze() {
-    const sentence = document.getElementById("inputText").value;
+        <script>
+        async function analyze() {
+            const sentence = document.getElementById("inputText").value;
 
-    const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ sentence })
-    });
+            const res = await fetch("/api/analyze", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ sentence })
+            });
 
-    const data = await res.json();
-    document.getElementById("output").textContent =
-        JSON.stringify(data, null, 2);
-}
-</script>
+            const data = await res.json();
 
-</body>
-</html>
-"""
+            let output = "";
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    return HTML_CONTENT
+            data.results.forEach(r => {
+                output += `
+🔹 الكلمة: ${r.word}
+الجذر: ${r.root}
+النمط: ${r.pattern || "—"}
+النوع: ${r.tag || "—"}
+الخصائص: ${r.properties.join(", ") || "—"}
+⬇️
+🎯 النتيجة: ${r.task}
+
+-----------------------
+`;
+            });
+
+            document.getElementById("output").textContent = output;
+        }
+        </script>
+    </body>
+    </html>
+    """
