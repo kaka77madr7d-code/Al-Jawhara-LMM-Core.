@@ -1,86 +1,93 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import re
 
 app = FastAPI()
 
 # =========================
-# 🧠 Data Structures
+# 🧠 Request
 # =========================
 
-class AnalyzeRequest(BaseModel):
-    sentence: str
-
-class Unit:
-    def __init__(self, original, root, pattern, tag):
-        self.original = original
-        self.root = root
-        self.pattern = pattern
-        self.tag = tag
+class RequestModel(BaseModel):
+    text: str = ""
 
 # =========================
-# 🔬 Linguistic Rules
+# 🔬 تحليل الكلمة
 # =========================
 
-TAG_PROPS = {
-    "FA_AL": ["RECIPROCAL", "BINARY"],
-    "UNKNOWN": []
-}
-
-def extract_root(word):
-    # تبسيط شديد (تقدرين تطورينه)
-    return word[:3] if len(word) >= 3 else word
-
-def detect_pattern(word):
-    if len(word) == 4 and word[1] == "ا":
-        return "فاعل", "FA_AL"
-    return None, "UNKNOWN"
-
-def distill(sentence):
-    words = sentence.split()
-    units = []
-
-    for w in words:
-        root = extract_root(w)
-        pattern, tag = detect_pattern(w)
-        units.append(Unit(w, root, pattern, tag))
-
-    return units
+def detect_intent(word):
+    if "شفر" in word:
+        return "ENCRYPT_API"
+    if "حسب" in word or "حاسب" in word:
+        return "CALCULATOR_API"
+    if "ترجم" in word:
+        return "TRANSLATE_API"
+    return "UNKNOWN"
 
 # =========================
-# 🤖 Inference Engine
+# 🤖 توليد API ديناميكي
 # =========================
 
-def infer(tag):
-    if tag == "FA_AL":
-        return "NETWORK_SOCKET"
-    return "UNKNOWN_TASK"
+def build_api(intent):
+
+    # 🔐 تشفير
+    if intent == "ENCRYPT_API":
+
+        @app.post("/encrypt")
+        async def encrypt(req: RequestModel):
+            result = "".join(chr(ord(c)+1) for c in req.text)
+            return {"original": req.text, "encrypted": result}
+
+        return "تم إنشاء API تشفير على /encrypt"
+
+    # ➕ حاسبة
+    elif intent == "CALCULATOR_API":
+
+        class CalcModel(BaseModel):
+            a: float
+            b: float
+
+        @app.post("/add")
+        async def add(req: CalcModel):
+            return {"result": req.a + req.b}
+
+        @app.post("/multiply")
+        async def multiply(req: CalcModel):
+            return {"result": req.a * req.b}
+
+        return "تم إنشاء API حاسبة على /add و /multiply"
+
+    # 🌍 ترجمة (تجريبية)
+    elif intent == "TRANSLATE_API":
+
+        @app.post("/translate")
+        async def translate(req: RequestModel):
+            return {
+                "original": req.text,
+                "translated": "hello" if req.text == "مرحبا" else "unknown"
+            }
+
+        return "تم إنشاء API ترجمة على /translate"
+
+    else:
+        return "❌ لم يتم التعرف على الكلمة"
 
 # =========================
-# 🌐 API
+# 🌐 API الرئيسي
 # =========================
 
-@app.post("/api/analyze")
-async def analyze(req: AnalyzeRequest):
-    units = distill(req.sentence)
-    results = []
+@app.post("/generate-api")
+async def generate_api(word: str):
+    intent = detect_intent(word)
+    result = build_api(intent)
 
-    for u in units:
-        props = TAG_PROPS.get(u.tag, [])
-
-        results.append({
-            "word": u.original,
-            "root": u.root,
-            "pattern": u.pattern,
-            "tag": u.tag,
-            "properties": props,
-            "task": infer(u.tag)
-        })
-
-    return {"results": results}
+    return {
+        "word": word,
+        "intent": intent,
+        "status": result
+    }
 
 # =========================
-# 🎨 Frontend (HTML)
+# 🎨 واجهة بسيطة
 # =========================
 
 @app.get("/")
@@ -88,74 +95,57 @@ async def home():
     return """
     <html>
     <head>
-        <title>LMM System</title>
+        <title>LMM API Generator</title>
         <style>
             body {
-                font-family: Arial;
                 background: #0f172a;
                 color: white;
                 text-align: center;
+                font-family: Arial;
                 padding: 40px;
             }
-            textarea {
-                width: 80%;
-                height: 100px;
+            input {
+                width: 300px;
+                padding: 10px;
                 font-size: 18px;
-                margin: 10px;
             }
             button {
                 padding: 10px 20px;
                 font-size: 18px;
-                cursor: pointer;
+                margin-top: 10px;
             }
             pre {
-                text-align: left;
                 background: #1e293b;
                 padding: 20px;
                 margin-top: 20px;
-                white-space: pre-wrap;
+                text-align: left;
             }
         </style>
     </head>
     <body>
-        <h1>🧠 LMM Linguistic Engine</h1>
+        <h1>🧠 LMM API Generator</h1>
 
-        <textarea id="inputText" placeholder="اكتب جملة..."></textarea><br>
-        <button onclick="analyze()">تحليل</button>
+        <input id="word" placeholder="اكتب كلمة...">
+        <br>
+        <button onclick="generate()">إنشاء API</button>
 
         <pre id="output"></pre>
 
         <script>
-        async function analyze() {
-            const sentence = document.getElementById("inputText").value;
+        async function generate() {
+            const word = document.getElementById("word").value;
 
-            const res = await fetch("/api/analyze", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ sentence })
+            const res = await fetch(`/generate-api?word=${word}`, {
+                method: "POST"
             });
 
             const data = await res.json();
 
-            let output = "";
-
-            data.results.forEach(r => {
-                output += `
-🔹 الكلمة: ${r.word}
-الجذر: ${r.root}
-النمط: ${r.pattern || "—"}
-النوع: ${r.tag || "—"}
-الخصائص: ${r.properties.join(", ") || "—"}
-⬇️
-🎯 النتيجة: ${r.task}
-
------------------------
-`;
-            });
-
-            document.getElementById("output").textContent = output;
+            document.getElementById("output").textContent =
+                "🔹 الكلمة: " + data.word + "\\n" +
+                "🧠 النية: " + data.intent + "\\n" +
+                "🚀 الحالة: " + data.status + "\\n\\n" +
+                "جربي الآن في /docs";
         }
         </script>
     </body>
