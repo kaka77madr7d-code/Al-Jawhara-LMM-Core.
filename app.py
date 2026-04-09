@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import os
+import uvicorn
 
 app = FastAPI()
 
 # =========================
-# 🧠 Request
+# 🧠 Models
 # =========================
 
 class RequestModel(BaseModel):
@@ -24,12 +26,12 @@ def detect_intent(word):
     return "UNKNOWN"
 
 # =========================
-# 🤖 توليد API ديناميكي
+# 🤖 توليد API
 # =========================
 
 def build_api(intent):
 
-    # 🔐 تشفير
+    # 🔐 API تشفير
     if intent == "ENCRYPT_API":
 
         @app.post("/encrypt")
@@ -37,9 +39,9 @@ def build_api(intent):
             result = "".join(chr(ord(c)+1) for c in req.text)
             return {"original": req.text, "encrypted": result}
 
-        return "تم إنشاء API تشفير على /encrypt"
+        return "✅ تم إنشاء API تشفير على /encrypt"
 
-    # ➕ حاسبة
+    # ➕ API حاسبة
     elif intent == "CALCULATOR_API":
 
         class CalcModel(BaseModel):
@@ -54,9 +56,9 @@ def build_api(intent):
         async def multiply(req: CalcModel):
             return {"result": req.a * req.b}
 
-        return "تم إنشاء API حاسبة على /add و /multiply"
+        return "✅ تم إنشاء API حاسبة على /add و /multiply"
 
-    # 🌍 ترجمة (تجريبية)
+    # 🌍 API ترجمة
     elif intent == "TRANSLATE_API":
 
         @app.post("/translate")
@@ -66,7 +68,7 @@ def build_api(intent):
                 "translated": "hello" if req.text == "مرحبا" else "unknown"
             }
 
-        return "تم إنشاء API ترجمة على /translate"
+        return "✅ تم إنشاء API ترجمة على /translate"
 
     else:
         return "❌ لم يتم التعرف على الكلمة"
@@ -145,9 +147,17 @@ async def home():
                 "🔹 الكلمة: " + data.word + "\\n" +
                 "🧠 النية: " + data.intent + "\\n" +
                 "🚀 الحالة: " + data.status + "\\n\\n" +
-                "جربي الآن في /docs";
+                "روحي /docs لتجربة الـ API";
         }
         </script>
     </body>
     </html>
     """
+
+# =========================
+# 🚀 تشغيل Render الصحيح
+# =========================
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
