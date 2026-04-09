@@ -220,4 +220,4 @@ async def analyze(req: AnalyzeRequest):
 async def root():
     return HTML_CONTENT # الواجهة التي أرفقتِها
 
-HTML_CONTENT = """... (ضعِ هنا كود الـ HTML الخاص بكِ) ..."""
+HTML_CONTENT = """https://al-jawhara-lmm-core.onrender.com"""
