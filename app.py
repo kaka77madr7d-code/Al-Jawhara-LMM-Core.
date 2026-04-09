@@ -933,7 +933,7 @@ async function run(){
     if(i>0)document.getElementById(steps[i-1]).classList.add("dn");
   }
   try{
-    const r=await fetch("/api/analyze",{method:"POST",
+    const r=await fetch("https://al-jawhara-lmm-core-17.onrender.com/api/analyze",{method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({sentence})});
     if(!r.ok)throw new Error("خطأ "+r.status);
