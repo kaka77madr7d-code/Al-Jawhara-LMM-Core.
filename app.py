@@ -9,153 +9,88 @@ app = FastAPI()
 # 🧠 Models
 # =========================
 
-class RequestModel(BaseModel):
-    text: str = ""
+class TextModel(BaseModel):
+    text: str
+
+class CalcModel(BaseModel):
+    a: float
+    b: float
 
 # =========================
-# 🔬 تحليل الكلمة
+# 🧠 تحليل الكلمة
 # =========================
 
 def detect_intent(word):
     if "شفر" in word:
-        return "ENCRYPT_API"
+        return "ENCRYPT"
     if "حسب" in word or "حاسب" in word:
-        return "CALCULATOR_API"
+        return "CALCULATE"
     if "ترجم" in word:
-        return "TRANSLATE_API"
+        return "TRANSLATE"
     return "UNKNOWN"
 
 # =========================
-# 🤖 توليد API
+# 🔐 API ثابتة (مهمة)
 # =========================
 
-def build_api(intent):
+@app.post("/encrypt")
+async def encrypt(req: TextModel):
+    result = "".join(chr(ord(c)+1) for c in req.text)
+    return {"original": req.text, "encrypted": result}
 
-    # 🔐 API تشفير
-    if intent == "ENCRYPT_API":
+@app.post("/add")
+async def add(req: CalcModel):
+    return {"result": req.a + req.b}
 
-        @app.post("/encrypt")
-        async def encrypt(req: RequestModel):
-            result = "".join(chr(ord(c)+1) for c in req.text)
-            return {"original": req.text, "encrypted": result}
+@app.post("/multiply")
+async def multiply(req: CalcModel):
+    return {"result": req.a * req.b}
 
-        return "✅ تم إنشاء API تشفير على /encrypt"
-
-    # ➕ API حاسبة
-    elif intent == "CALCULATOR_API":
-
-        class CalcModel(BaseModel):
-            a: float
-            b: float
-
-        @app.post("/add")
-        async def add(req: CalcModel):
-            return {"result": req.a + req.b}
-
-        @app.post("/multiply")
-        async def multiply(req: CalcModel):
-            return {"result": req.a * req.b}
-
-        return "✅ تم إنشاء API حاسبة على /add و /multiply"
-
-    # 🌍 API ترجمة
-    elif intent == "TRANSLATE_API":
-
-        @app.post("/translate")
-        async def translate(req: RequestModel):
-            return {
-                "original": req.text,
-                "translated": "hello" if req.text == "مرحبا" else "unknown"
-            }
-
-        return "✅ تم إنشاء API ترجمة على /translate"
-
-    else:
-        return "❌ لم يتم التعرف على الكلمة"
-
-# =========================
-# 🌐 API الرئيسي
-# =========================
-
-@app.post("/generate-api")
-async def generate_api(word: str):
-    intent = detect_intent(word)
-    result = build_api(intent)
-
+@app.post("/translate")
+async def translate(req: TextModel):
     return {
-        "word": word,
-        "intent": intent,
-        "status": result
+        "original": req.text,
+        "translated": "hello" if req.text == "مرحبا" else "unknown"
     }
 
 # =========================
-# 🎨 واجهة بسيطة
+# 🎯 API ذكي (يربط الكلمة)
+# =========================
+
+@app.post("/smart")
+async def smart(word: str, text: str = "", a: float = 0, b: float = 0):
+    intent = detect_intent(word)
+
+    if intent == "ENCRYPT":
+        result = "".join(chr(ord(c)+1) for c in text)
+        return {"intent": intent, "result": result}
+
+    elif intent == "CALCULATE":
+        return {
+            "intent": intent,
+            "add": a + b,
+            "multiply": a * b
+        }
+
+    elif intent == "TRANSLATE":
+        return {
+            "intent": intent,
+            "translated": "hello" if text == "مرحبا" else "unknown"
+        }
+
+    else:
+        return {"intent": "UNKNOWN"}
+
+# =========================
+# 🌐 واجهة
 # =========================
 
 @app.get("/")
 async def home():
-    return """
-    <html>
-    <head>
-        <title>LMM API Generator</title>
-        <style>
-            body {
-                background: #0f172a;
-                color: white;
-                text-align: center;
-                font-family: Arial;
-                padding: 40px;
-            }
-            input {
-                width: 300px;
-                padding: 10px;
-                font-size: 18px;
-            }
-            button {
-                padding: 10px 20px;
-                font-size: 18px;
-                margin-top: 10px;
-            }
-            pre {
-                background: #1e293b;
-                padding: 20px;
-                margin-top: 20px;
-                text-align: left;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>🧠 LMM API Generator</h1>
-
-        <input id="word" placeholder="اكتب كلمة...">
-        <br>
-        <button onclick="generate()">إنشاء API</button>
-
-        <pre id="output"></pre>
-
-        <script>
-        async function generate() {
-            const word = document.getElementById("word").value;
-
-            const res = await fetch(`/generate-api?word=${word}`, {
-                method: "POST"
-            });
-
-            const data = await res.json();
-
-            document.getElementById("output").textContent =
-                "🔹 الكلمة: " + data.word + "\\n" +
-                "🧠 النية: " + data.intent + "\\n" +
-                "🚀 الحالة: " + data.status + "\\n\\n" +
-                "روحي /docs لتجربة الـ API";
-        }
-        </script>
-    </body>
-    </html>
-    """
+    return {"message": "LMM جاهز 🔥 استخدمي /docs"}
 
 # =========================
-# 🚀 تشغيل Render الصحيح
+# 🚀 تشغيل Render
 # =========================
 
 if __name__ == "__main__":
