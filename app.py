@@ -2,8 +2,13 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 import uvicorn
+from fastapi import FastAPI
 
 app = FastAPI()
+
+@app.get("/")
+async def home():
+    return {"message": "API شغال 🔥"}
 
 # =========================
 # 🧠 Models
