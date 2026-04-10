@@ -14,7 +14,7 @@ async def home():
 # ⚙️ إعداداتك (عدليها)
 # =========================
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "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"
 GITHUB_USERNAME = "kaka77madr7d-code"
 
 # =========================
@@ -63,8 +63,16 @@ def create_repo(repo_name):
         "name": repo_name,
         "auto_init": True
     }
+
     r = requests.post(url, json=data, headers=headers)
-    return r.json()
+
+    # 🔥 طباعة الرد الحقيقي
+    print("GitHub response:", r.status_code, r.text)
+
+    if r.status_code == 201:
+        return True
+    else:
+        return False
 
 # =========================
 # 📤 رفع ملف
@@ -97,7 +105,13 @@ async def deploy(cmd: CommandModel):
     code = generate_api_code(cmd.command)
 
     # 1. إنشاء repo
-    create_repo(repo_name)
+created = create_repo(repo_name)
+
+if not created:
+    return {
+        "error": "❌ فشل إنشاء الريبو",
+        "solution": "تأكدي من GitHub Token أو اسم الريبو"
+    }
 
     # 2. رفع الملفات
     upload_file(repo_name, "app.py", code)
