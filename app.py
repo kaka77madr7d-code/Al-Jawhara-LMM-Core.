@@ -3,6 +3,10 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+@app.get("/")
+async def home():
+    return {"message": "API شغال 🔥"}
+
 # =========================
 # 📦 Model
 # =========================
