@@ -10,7 +10,7 @@ app = FastAPI()
 # ⚙️ إعدادات GitHub (عدليها)
 # =========================
 
-GITHUB_TOKEN = "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"  # 🔐 حطي التوكن هنا
+GITHUB_TOKEN = "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"  # 🔐 حطي التوكن هنا
 GITHUB_USERNAME = "kaka77madr7d-code"   # 👈 اسم حسابك
 
 # =========================
