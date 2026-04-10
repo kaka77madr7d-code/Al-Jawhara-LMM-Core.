@@ -5,6 +5,11 @@ import base64
 
 app = FastAPI()
 
+@app.get("/")
+async def home():
+    return {"message": "API شغال 🔥"}
+
+
 # =========================
 # ⚙️ إعداداتك (عدليها)
 # =========================
