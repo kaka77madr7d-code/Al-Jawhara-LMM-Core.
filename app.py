@@ -1,12 +1,16 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import requests
+import base64
 
 app = FastAPI()
 
-@app.get("/")
-async def home():
-    return {"message": "API شغال 🔥"}
+# =========================
+# ⚙️ إعداداتك (عدليها)
+# =========================
 
+GITHUB_TOKEN = "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"
+GITHUB_USERNAME = "kaka77madr7d-code"
 
 # =========================
 # 📦 Model
@@ -20,7 +24,6 @@ class CommandModel(BaseModel):
 # =========================
 
 def generate_api_code(command: str):
-
     if "شفر" in command:
         return """
 from fastapi import FastAPI
@@ -31,80 +34,80 @@ app = FastAPI()
 class Text(BaseModel):
     text: str
 
+@app.get("/")
+def home():
+    return {"message": "API شغال 🔥"}
+
 @app.post("/encrypt")
 def encrypt(data: Text):
     result = "".join(chr(ord(c)+1) for c in data.text)
     return {"result": result}
 """
+    return "# unknown command"
 
-    elif "احسب" in command or "حاسب" in command:
-        return """
-from fastapi import FastAPI
-from pydantic import BaseModel
+# =========================
+# 🚀 إنشاء Repo
+# =========================
 
-app = FastAPI()
-
-class Numbers(BaseModel):
-    a: float
-    b: float
-
-@app.post("/add")
-def add(data: Numbers):
-    return {"result": data.a + data.b}
-
-@app.post("/multiply")
-def multiply(data: Numbers):
-    return {"result": data.a * data.b}
-"""
-
-    elif "ترجم" in command:
-        return """
-from fastapi import FastAPI
-from pydantic import BaseModel
-
-app = FastAPI()
-
-class Text(BaseModel):
-    text: str
-
-@app.post("/translate")
-def translate(data: Text):
-    return {
-        "original": data.text,
-        "translated": "hello" if data.text == "مرحبا" else "unknown"
+def create_repo(repo_name):
+    url = "https://api.github.com/user/repos"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}"
     }
-"""
-
-    else:
-        return "# لم يتم التعرف على الأمر"
+    data = {
+        "name": repo_name,
+        "auto_init": True
+    }
+    r = requests.post(url, json=data, headers=headers)
+    return r.json()
 
 # =========================
-# 🔥 API: توليد + حفظ
+# 📤 رفع ملف
 # =========================
 
-@app.post("/generate-api")
-async def generate_api(cmd: CommandModel):
+def upload_file(repo, path, content):
+    url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{path}"
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}"
+    }
+
+    encoded = base64.b64encode(content.encode()).decode()
+
+    data = {
+        "message": f"add {path}",
+        "content": encoded
+    }
+
+    requests.put(url, json=data, headers=headers)
+
+# =========================
+# 🔥 API الرئيسي
+# =========================
+
+@app.post("/deploy")
+async def deploy(cmd: CommandModel):
+
+    repo_name = "ai-generated-api"
 
     code = generate_api_code(cmd.command)
 
-    # 💾 حفظ الملف
-    filename = "generated_api.py"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(code)
+    # 1. إنشاء repo
+    create_repo(repo_name)
+
+    # 2. رفع الملفات
+    upload_file(repo_name, "app.py", code)
+    upload_file(repo_name, "requirements.txt", "fastapi\nuvicorn")
 
     return {
-        "command": cmd.command,
-        "message": "تم توليد API وحفظه 🔥",
-        "file": filename,
-        "generated_code": code
+        "message": "تم رفع المشروع على GitHub 🚀",
+        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo_name}",
+        "next_step": "اربطه بـ Render وبيشتغل تلقائي 🔥"
     }
 
 # =========================
-# 🌐 الصفحة الرئيسية
+# 🌐 Home
 # =========================
 
 @app.get("/")
 def home():
-    return {
-        "message": "LMM Generator شغال 🔥 استخدمي /docs"
-    }
+    return {"message": "AI Deployer جاهز 😈"}
