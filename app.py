@@ -5,11 +5,6 @@ import base64
 
 app = FastAPI()
 
-@app.get("/")
-async def home():
-    return {"message": "API شغال 🔥"}
-
-
 # =========================
 # ⚙️ إعداداتك (عدليها)
 # =========================
@@ -63,16 +58,8 @@ def create_repo(repo_name):
         "name": repo_name,
         "auto_init": True
     }
-
     r = requests.post(url, json=data, headers=headers)
-
-    # 🔥 طباعة الرد الحقيقي
-    print("GitHub response:", r.status_code, r.text)
-
-    if r.status_code == 201:
-        return True
-    else:
-        return False
+    return r.json()
 
 # =========================
 # 📤 رفع ملف
@@ -105,13 +92,7 @@ async def deploy(cmd: CommandModel):
     code = generate_api_code(cmd.command)
 
     # 1. إنشاء repo
-created = create_repo(repo_name)
-
-if not created:
-    return {
-        "error": "❌ فشل إنشاء الريبو",
-        "solution": "تأكدي من GitHub Token أو اسم الريبو"
-    }
+    create_repo(repo_name)
 
     # 2. رفع الملفات
     upload_file(repo_name, "app.py", code)
