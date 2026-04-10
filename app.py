@@ -1,102 +1,69 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import os
-import uvicorn
-from fastapi import FastAPI
 
 app = FastAPI()
 
-@app.get("/")
-async def home():
-    return {"message": "API شغال 🔥"}
-
 # =========================
-# 🧠 Models
+# 📦 Model
 # =========================
 
-class TextModel(BaseModel):
+class CommandModel(BaseModel):
+    command: str
+
+# =========================
+# 🧠 Generator
+# =========================
+
+def generate_api_code(command: str):
+    if "شفر" in command:
+        return """
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Text(BaseModel):
     text: str
 
-class CalcModel(BaseModel):
+@app.post("/encrypt")
+def encrypt(data: Text):
+    result = "".join(chr(ord(c)+1) for c in data.text)
+    return {"result": result}
+"""
+    elif "احسب" in command:
+        return """
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class Numbers(BaseModel):
     a: float
     b: float
 
-# =========================
-# 🧠 تحليل الكلمة
-# =========================
-
-def detect_intent(word):
-    if "شفر" in word:
-        return "ENCRYPT"
-    if "حسب" in word or "حاسب" in word:
-        return "CALCULATE"
-    if "ترجم" in word:
-        return "TRANSLATE"
-    return "UNKNOWN"
-
-# =========================
-# 🔐 API ثابتة (مهمة)
-# =========================
-
-@app.post("/encrypt")
-async def encrypt(req: TextModel):
-    result = "".join(chr(ord(c)+1) for c in req.text)
-    return {"original": req.text, "encrypted": result}
-
 @app.post("/add")
-async def add(req: CalcModel):
-    return {"result": req.a + req.b}
+def add(data: Numbers):
+    return {"result": data.a + data.b}
+"""
+    else:
+        return "# لم يتم التعرف على الأمر"
 
-@app.post("/multiply")
-async def multiply(req: CalcModel):
-    return {"result": req.a * req.b}
+# =========================
+# 🔥 API توليد
+# =========================
 
-@app.post("/translate")
-async def translate(req: TextModel):
+@app.post("/generate-api")
+async def generate_api(cmd: CommandModel):
+    code = generate_api_code(cmd.command)
     return {
-        "original": req.text,
-        "translated": "hello" if req.text == "مرحبا" else "unknown"
+        "command": cmd.command,
+        "generated_code": code
     }
 
 # =========================
-# 🎯 API ذكي (يربط الكلمة)
-# =========================
-
-@app.post("/smart")
-async def smart(word: str, text: str = "", a: float = 0, b: float = 0):
-    intent = detect_intent(word)
-
-    if intent == "ENCRYPT":
-        result = "".join(chr(ord(c)+1) for c in text)
-        return {"intent": intent, "result": result}
-
-    elif intent == "CALCULATE":
-        return {
-            "intent": intent,
-            "add": a + b,
-            "multiply": a * b
-        }
-
-    elif intent == "TRANSLATE":
-        return {
-            "intent": intent,
-            "translated": "hello" if text == "مرحبا" else "unknown"
-        }
-
-    else:
-        return {"intent": "UNKNOWN"}
-
-# =========================
-# 🌐 واجهة
+# 🌐 Home
 # =========================
 
 @app.get("/")
-async def home():
-    return {"message": "LMM جاهز 🔥 استخدمي /docs"}
-
-# =========================
-# 🚀 تشغيل Render
-# =========================
-@app.get("/")
-async def home():
-    return {"message": "LMM جاهز 🔥 استخدمي /docs"}
+def home():
+    return {"message": "مولد APIs جاهز 🔥"}
