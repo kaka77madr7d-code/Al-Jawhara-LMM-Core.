@@ -6,7 +6,7 @@ from enum import Enum, auto
 app = FastAPI()
 
 # =========================
-# 🔐 ENV (من Render)
+# 🔐 ENV
 # =========================
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_USERNAME = "kaka77madr7d-code"
@@ -18,7 +18,7 @@ class CommandModel(BaseModel):
     command: str
 
 # =========================
-# 🧠 LMM — تحليل صرفي
+# 🧠 LMM (تحليل صرفي مبسط)
 # =========================
 
 CONSONANTS = set("بتثجحخدذرزسشصضطظعغفقكلمنهوي")
@@ -36,10 +36,12 @@ def normalize(w):
 def match(word, pattern):
     w = normalize(word)
     p = normalize(pattern)
-    if len(w) != len(p): return False
+    if len(w) != len(p):
+        return False
     for wc, pc in zip(w, p):
         if pc in SLOT_CHARS:
-            if wc not in CONSONANTS: return False
+            if wc not in CONSONANTS:
+                return False
         elif wc != pc:
             return False
     return True
@@ -170,10 +172,18 @@ def upload(repo, path, content):
 
     r = requests.put(url, json=data, headers=headers)
 
-    print("UPLOAD:", path, r.status_code)
+    print("UPLOAD:", path)
+    print("STATUS:", r.status_code)
+    print("RESPONSE:", r.text)
+
+    if r.status_code not in [200, 201]:
+        print(f"❌ فشل رفع {path}")
+        return False
+
+    return True
 
 # =========================
-# 🔥 Deploy API
+# 🔥 Deploy
 # =========================
 
 @app.post("/deploy")
@@ -189,16 +199,17 @@ def deploy(cmd: CommandModel):
 
     code = generate_api(task)
 
+    if not code or code.strip() == "# unknown":
+        return {"error": "❌ لم يتم توليد كود صالح"}
+
     repo = f"lmm-api-{random.randint(1000,9999)}"
 
     if not create_repo(repo):
-        return {"error": "❌ فشل GitHub"}
+        return {"error": "❌ فشل إنشاء repo"}
 
-    # 📦 رفع الملفات
-    upload(repo, "app.py", code)
-    upload(repo, "requirements.txt", "fastapi\nuvicorn")
+    # 🔥 ملفات المشروع
+    requirements = "fastapi\nuvicorn\nrequests"
 
-    # 🔥 ملف Render (الأهم)
     render_yaml = """
 services:
   - type: web
@@ -209,14 +220,22 @@ services:
     plan: free
 """
 
-    upload(repo, "render.yaml", render_yaml)
+    # 🚨 رفع مع تحقق
+    if not upload(repo, "app.py", code):
+        return {"error": "❌ فشل رفع app.py"}
+
+    if not upload(repo, "requirements.txt", requirements):
+        return {"error": "❌ فشل رفع requirements"}
+
+    if not upload(repo, "render.yaml", render_yaml):
+        return {"error": "❌ فشل رفع render.yaml"}
 
     return {
         "word": word,
         "pattern": tag,
         "task": task,
         "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}",
-        "next": "اذهبي Render → New Blueprint → اربطي repo 🔥"
+        "status": "🔥 جاهز للربط مع Render (Blueprint)"
     }
 
 # =========================
@@ -225,4 +244,4 @@ services:
 
 @app.get("/")
 def home():
-    return {"message": "LMM + Auto Deploy جاهز 😈 استخدمي /docs"}
+    return {"message": "LMM + Auto Deploy شغال 😈 ادخلي /docs"}
