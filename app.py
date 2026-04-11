@@ -10,7 +10,7 @@ app = FastAPI()
 # ⚙️ إعدادات GitHub (عدليها)
 # =========================
 
-GITHUB_TOKEN = "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"  # 🔐 حطي التوكن هنا
+GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxx"  # 🔐 التوكن (Classic)
 GITHUB_USERNAME = "kaka77madr7d-code"   # 👈 اسم حسابك
 
 # =========================
@@ -48,22 +48,28 @@ def encrypt(data: Text):
         return "# لم يتم التعرف على الأمر"
 
 # =========================
-# 🚀 إنشاء Repo (مع تحقق)
+# 🚀 إنشاء Repo
 # =========================
 
 def create_repo(repo_name):
     url = "https://api.github.com/user/repos"
+
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}"
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
     }
+
     data = {
         "name": repo_name,
-        "auto_init": True
+        "auto_init": True,
+        "private": False
     }
 
     r = requests.post(url, json=data, headers=headers)
 
-    print("GitHub create repo response:", r.status_code, r.text)
+    print("=== CREATE REPO DEBUG ===")
+    print("Status:", r.status_code)
+    print("Response:", r.text)
 
     if r.status_code == 201:
         return True
@@ -71,13 +77,15 @@ def create_repo(repo_name):
         return False
 
 # =========================
-# 📤 رفع ملف إلى GitHub
+# 📤 رفع الملفات
 # =========================
 
 def upload_file(repo, path, content):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{path}"
+
     headers = {
-        "Authorization": f"token {GITHUB_TOKEN}"
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json"
     }
 
     encoded = base64.b64encode(content.encode()).decode()
@@ -89,16 +97,18 @@ def upload_file(repo, path, content):
 
     r = requests.put(url, json=data, headers=headers)
 
-    print("Upload file response:", r.status_code, r.text)
+    print(f"=== UPLOAD {path} ===")
+    print("Status:", r.status_code)
+    print("Response:", r.text)
 
 # =========================
-# 🔥 API: Deploy كامل
+# 🔥 API: Deploy
 # =========================
 
 @app.post("/deploy")
 async def deploy(cmd: CommandModel):
 
-    # 💣 اسم عشوائي عشان ما يتكرر
+    # 💣 اسم عشوائي (حل مشكلة التكرار)
     repo_name = f"ai-api-{random.randint(1000,9999)}"
 
     code = generate_api_code(cmd.command)
@@ -109,7 +119,7 @@ async def deploy(cmd: CommandModel):
     if not created:
         return {
             "error": "❌ فشل إنشاء الريبو",
-            "solution": "تأكدي من GitHub Token وصلاحياته (repo)"
+            "hint": "شيكي اللوق في Render → Logs (GitHub بيرجع السبب الحقيقي)"
         }
 
     # 2️⃣ رفع الملفات
@@ -119,7 +129,7 @@ async def deploy(cmd: CommandModel):
     return {
         "message": "✅ تم إنشاء API ورفعه على GitHub",
         "repo": f"https://github.com/{GITHUB_USERNAME}/{repo_name}",
-        "next_step": "اربطيه في Render وبيشتغل 🔥"
+        "status": "جاهز للربط مع Render 🔥"
     }
 
 # =========================
@@ -128,4 +138,6 @@ async def deploy(cmd: CommandModel):
 
 @app.get("/")
 def home():
-    return {"message": "AI DevOps شغال 😈 استخدمي /docs"}
+    return {
+        "message": "AI DevOps System شغال 😈 استخدمي /docs"
+    }
