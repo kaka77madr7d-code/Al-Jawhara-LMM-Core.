@@ -1,32 +1,102 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import requests
-import base64
-import random
-import os
+import requests, base64, random, os, re
+from dataclasses import dataclass
+from enum import Enum, auto
 
 app = FastAPI()
 
 # =========================
-# 🔐 قراءة التوكن من Render
+# 🔐 ENV
 # =========================
-
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_USERNAME = "kaka77madr7d-code"
 
 # =========================
 # 📦 Model
 # =========================
-
 class CommandModel(BaseModel):
     command: str
 
 # =========================
-# 🧠 توليد كود API
+# 🧠 LMM — صرف
 # =========================
 
-def generate_api_code(command: str):
-    if "شفر" in command:
+CONSONANTS = set("بتثجحخدذرزسشصضطظعغفقكلمنهوي")
+SLOT_CHARS  = set("فعل")
+
+PATTERNS = {
+    "فَعَلَ": {"tag":"FAL"},
+    "فَعَّلَ": {"tag":"FALLAL"},
+    "فَاعَلَ": {"tag":"FA_AL"},
+    "أَفْعَلَ": {"tag":"AF_AL"},
+    "تَفَعَّلَ": {"tag":"TAFA_AL"},
+    "تَفَاعَلَ": {"tag":"TAFAA_AL"},
+    "انْفَعَلَ": {"tag":"INFA_AL"},
+    "افْتَعَلَ": {"tag":"IFTA_AL"},
+    "اسْتَفْعَلَ": {"tag":"ISTAF_AL"},
+}
+
+def norm(w):
+    w = re.sub(r"[\u064B-\u065F]", "", w)
+    return w
+
+def match(word, pat):
+    if len(word) != len(pat): return False
+    for wc, pc in zip(word, pat):
+        if pc in SLOT_CHARS:
+            if wc not in CONSONANTS: return False
+        elif wc != pc:
+            return False
+    return True
+
+def detect(word):
+    for pat, info in PATTERNS.items():
+        if match(norm(word), norm(pat)):
+            return info["tag"]
+    return None
+
+# =========================
+# 🧠 أكسيومات
+# =========================
+
+class P(Enum):
+    TRANSFORM=auto()
+    REQUEST=auto()
+    RECIPROCAL=auto()
+    STATE=auto()
+
+TAG_MAP = {
+    "FALLAL": {P.TRANSFORM},
+    "ISTAF_AL": {P.REQUEST},
+    "TAFAA_AL": {P.RECIPROCAL, P.STATE},
+}
+
+# =========================
+# 🧠 استنتاج → مهمة
+# =========================
+
+def infer_task(tag):
+    props = TAG_MAP.get(tag, set())
+
+    if P.TRANSFORM in props:
+        return "ENCRYPT_API"
+
+    if P.REQUEST in props:
+        return "REQUEST_API"
+
+    if P.RECIPROCAL in props:
+        return "SOCKET_API"
+
+    return "UNKNOWN"
+
+# =========================
+# ⚙️ توليد API
+# =========================
+
+def generate_api(task):
+
+    if task == "ENCRYPT_API":
         return """
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -36,109 +106,97 @@ app = FastAPI()
 class Text(BaseModel):
     text: str
 
-@app.get("/")
-def home():
-    return {"message": "API تشفير شغال 🔥"}
-
 @app.post("/encrypt")
 def encrypt(data: Text):
-    result = "".join(chr(ord(c)+1) for c in data.text)
-    return {"result": result}
+    return {"result": "".join(chr(ord(c)+1) for c in data.text)}
 """
-    else:
-        return "# لم يتم التعرف على الأمر"
+
+    if task == "REQUEST_API":
+        return """
+from fastapi import FastAPI
+import requests
+
+app = FastAPI()
+
+@app.get("/fetch")
+def fetch():
+    return {"status": "request sent"}
+"""
+
+    if task == "SOCKET_API":
+        return """
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/socket")
+def socket():
+    return {"message": "socket running"}
+"""
+
+    return "# unknown"
 
 # =========================
-# 🚀 إنشاء Repo
+# 🚀 GitHub
 # =========================
 
-def create_repo(repo_name):
-
-    if not GITHUB_TOKEN:
-        print("❌ TOKEN NOT FOUND")
-        return False
-
+def create_repo(name):
     url = "https://api.github.com/user/repos"
-
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
 
-    data = {
-        "name": repo_name,
-        "auto_init": True,
-        "private": False
-    }
-
-    r = requests.post(url, json=data, headers=headers)
-
-    print("=== CREATE REPO DEBUG ===")
-    print("Status:", r.status_code)
-    print("Response:", r.text)
-
+    r = requests.post(url, json={"name":name,"auto_init":True}, headers=headers)
+    print(r.status_code, r.text)
     return r.status_code == 201
 
-# =========================
-# 📤 رفع الملفات
-# =========================
-
-def upload_file(repo, path, content):
-
+def upload(repo, path, content):
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{path}"
-
     headers = {
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
-
-    encoded = base64.b64encode(content.encode()).decode()
 
     data = {
         "message": f"add {path}",
-        "content": encoded
+        "content": base64.b64encode(content.encode()).decode()
     }
 
-    r = requests.put(url, json=data, headers=headers)
-
-    print(f"=== UPLOAD {path} ===")
-    print("Status:", r.status_code)
-    print("Response:", r.text)
+    requests.put(url, json=data, headers=headers)
 
 # =========================
-# 🔥 API: Deploy
+# 🔥 API
 # =========================
 
 @app.post("/deploy")
-async def deploy(cmd: CommandModel):
+def deploy(cmd: CommandModel):
 
-    repo_name = f"ai-api-{random.randint(1000,9999)}"
+    word = cmd.command.split()[0]  # أول كلمة
 
-    code = generate_api_code(cmd.command)
+    tag = detect(word)
+    task = infer_task(tag)
 
-    created = create_repo(repo_name)
+    if task == "UNKNOWN":
+        return {"error": "❌ لم يتم فهم الكلمة"}
 
-    if not created:
-        return {
-            "error": "❌ فشل إنشاء الريبو",
-            "hint": "تأكدي إن GITHUB_TOKEN موجود في Render Environment"
-        }
+    code = generate_api(task)
 
-    upload_file(repo_name, "app.py", code)
-    upload_file(repo_name, "requirements.txt", "fastapi\nuvicorn")
+    repo = f"lmm-api-{random.randint(1000,9999)}"
+
+    if not create_repo(repo):
+        return {"error":"❌ GitHub فشل"}
+
+    upload(repo, "app.py", code)
+    upload(repo, "requirements.txt", "fastapi\nuvicorn")
 
     return {
-        "message": "✅ تم إنشاء API ورفعه على GitHub",
-        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo_name}",
-        "status": "جاهز للربط مع Render 🔥"
+        "word": word,
+        "pattern": tag,
+        "task": task,
+        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}"
     }
-
-# =========================
-# 🌐 Home
-# =========================
 
 @app.get("/")
 def home():
-    return {
-        "message": "AI DevOps System شغال 😈 استخدمي /docs"
-    }
+    return {"message": "LMM + DevOps 🔥 استخدمي /docs"}
