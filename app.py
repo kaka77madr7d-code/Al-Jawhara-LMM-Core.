@@ -3,15 +3,16 @@ from pydantic import BaseModel
 import requests
 import base64
 import random
+import os
 
 app = FastAPI()
 
 # =========================
-# ⚙️ إعدادات GitHub (عدليها)
+# 🔐 قراءة التوكن من Render
 # =========================
 
-GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxx"  # 🔐 التوكن (Classic)
-GITHUB_USERNAME = "kaka77madr7d-code"   # 👈 اسم حسابك
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_USERNAME = "kaka77madr7d-code"
 
 # =========================
 # 📦 Model
@@ -52,6 +53,11 @@ def encrypt(data: Text):
 # =========================
 
 def create_repo(repo_name):
+
+    if not GITHUB_TOKEN:
+        print("❌ TOKEN NOT FOUND")
+        return False
+
     url = "https://api.github.com/user/repos"
 
     headers = {
@@ -71,16 +77,14 @@ def create_repo(repo_name):
     print("Status:", r.status_code)
     print("Response:", r.text)
 
-    if r.status_code == 201:
-        return True
-    else:
-        return False
+    return r.status_code == 201
 
 # =========================
 # 📤 رفع الملفات
 # =========================
 
 def upload_file(repo, path, content):
+
     url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{path}"
 
     headers = {
@@ -108,21 +112,18 @@ def upload_file(repo, path, content):
 @app.post("/deploy")
 async def deploy(cmd: CommandModel):
 
-    # 💣 اسم عشوائي (حل مشكلة التكرار)
     repo_name = f"ai-api-{random.randint(1000,9999)}"
 
     code = generate_api_code(cmd.command)
 
-    # 1️⃣ إنشاء repo
     created = create_repo(repo_name)
 
     if not created:
         return {
             "error": "❌ فشل إنشاء الريبو",
-            "hint": "شيكي اللوق في Render → Logs (GitHub بيرجع السبب الحقيقي)"
+            "hint": "تأكدي إن GITHUB_TOKEN موجود في Render Environment"
         }
 
-    # 2️⃣ رفع الملفات
     upload_file(repo_name, "app.py", code)
     upload_file(repo_name, "requirements.txt", "fastapi\nuvicorn")
 
