@@ -1,6 +1,5 @@
 # =========================================
-# Al-Jawhara LMM — Full System
-# تحليل صرفي + توليد UI + نشر تلقائي
+# Al-Jawhara LMM — FULL VERSION (FIXED)
 # =========================================
 
 from fastapi import FastAPI
@@ -11,30 +10,24 @@ import os
 import base64
 import re
 
-app = FastAPI(title="Al-Jawhara LMM v3 🔥")
+app = FastAPI(title="Al-Jawhara LMM v4 🔥")
 
 # =========================================
-# 1) تحليل بسيط للأوزان (STRICT)
+# 1) تحليل الأوزان (STRICT)
 # =========================================
 
 PATTERNS = {
     "يُفَعِّل": "DATA_PROCESSOR",
     "فَعَّلَ": "DATA_PROCESSOR",
-
     "مُتَفَعِّل": "UI_GENERATOR",
-
     "مُتَفَاعِل": "NETWORK_SOCKET",
     "تَفَاعَلَ": "NETWORK_SOCKET",
-
     "مَفْعُول": "DATA_OBJECT",
-
     "فَاعِل": "ACTIVE_AGENT",
-
     "اسْتَفْعَلَ": "HTTP_CLIENT",
 }
 
 def detect_pattern(word):
-    # تبسيط (بدون تشكيل)
     w = re.sub(r'[\u064B-\u065F]', '', word)
 
     if w.startswith("ي") and len(w) >= 5:
@@ -60,7 +53,7 @@ def infer_task(pattern):
 
 
 # =========================================
-# 2) توليد UI حقيقي (HTML)
+# 2) توليد UI
 # =========================================
 
 def generate_ui(title):
@@ -157,39 +150,57 @@ def home():
 
 
 # =========================================
-# 4) رفع على GitHub
+# 4) GitHub رفع (FIXED + DEBUG)
 # =========================================
 
 def upload_to_github(repo_name, code):
     token = os.getenv("GITHUB_TOKEN")
-    username = os.getenv("kaka77madr7d-code")
+    username = os.getenv("GITHUB_USERNAME")
 
-    url = "https://api.github.com/user/repos"
+    if not token or not username:
+        return {
+            "error": "❌ التوكن أو اسم المستخدم غير موجود",
+            "solution": "تأكدي من Environment Variables"
+        }
 
     headers = {
-        "Authorization": f"token {token}"
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
     }
 
-    data = {
-        "name": repo_name,
-        "private": False
-    }
-
-    r = requests.post(url, json=data, headers=headers)
+    # إنشاء repo
+    r = requests.post(
+        "https://api.github.com/user/repos",
+        json={"name": repo_name},
+        headers=headers
+    )
 
     if r.status_code not in [200, 201]:
-        return None
+        return {
+            "error": "❌ فشل إنشاء الريبو",
+            "details": r.json()
+        }
+
+    # رفع الملف
+    content = base64.b64encode(code.encode()).decode()
 
     file_url = f"https://api.github.com/repos/{username}/{repo_name}/contents/app.py"
 
-    content = base64.b64encode(code.encode()).decode()
-
-    requests.put(file_url, json={
+    r2 = requests.put(file_url, json={
         "message": "initial commit",
         "content": content
     }, headers=headers)
 
-    return f"https://github.com/{username}/{repo_name}"
+    if r2.status_code not in [200, 201]:
+        return {
+            "error": "❌ فشل رفع الملف",
+            "details": r2.json()
+        }
+
+    return {
+        "success": True,
+        "repo": f"https://github.com/{username}/{repo_name}"
+    }
 
 
 # =========================================
@@ -214,31 +225,30 @@ def build_and_deploy(req: RequestModel):
             task_detected = task
             break
 
-    # توليد UI + API
     code = generate_api_code(req.sentence)
 
-    # رفع GitHub
     repo_name = "ai-ui-" + str(abs(hash(req.sentence)) % 10000)
-    repo = upload_to_github(repo_name, code)
 
-    if not repo:
-        return {"error": "فشل GitHub"}
+    result = upload_to_github(repo_name, code)
+
+    if not result or "error" in result:
+        return result
 
     return {
         "message": "🔥 تم بناء التطبيق بالكامل",
         "task": task_detected,
-        "repo": repo,
+        "repo": result["repo"],
         "next": "اربطه بـ Render"
     }
 
 
 # =========================================
-# 6) واجهة بسيطة
+# 6) واجهة رئيسية
 # =========================================
 
 @app.get("/", response_class=HTMLResponse)
 def root():
     return """
-    <h1>Al-Jawhara LMM 🔥</h1>
+    <h1>🔥 Al-Jawhara LMM</h1>
     <p>اكتب جملة → يتحول لتطبيق كامل</p>
     """
