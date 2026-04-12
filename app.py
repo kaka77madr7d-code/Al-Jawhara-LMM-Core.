@@ -1,5 +1,5 @@
 # =========================================
-# Al-Jawhara LMM — FULL VERSION (FIXED)
+# Al-Jawhara LMM — FINAL VERSION (USERNAME FIX)
 # =========================================
 
 from fastapi import FastAPI
@@ -10,10 +10,15 @@ import os
 import base64
 import re
 
-app = FastAPI(title="Al-Jawhara LMM v4 🔥")
+app = FastAPI(title="Al-Jawhara LMM v5 🔥")
 
 # =========================================
-# 1) تحليل الأوزان (STRICT)
+# ⚠️ هنا تحطين اسمك في GitHub
+# =========================================
+GITHUB_USERNAME = "kaka77madr7d-code"
+
+# =========================================
+# 1) تحليل الأوزان
 # =========================================
 
 PATTERNS = {
@@ -53,7 +58,7 @@ def infer_task(pattern):
 
 
 # =========================================
-# 2) توليد UI
+# 2) UI
 # =========================================
 
 def generate_ui(title):
@@ -122,7 +127,7 @@ async function send() {{
 
 
 # =========================================
-# 3) توليد API
+# 3) API
 # =========================================
 
 def generate_api_code(title):
@@ -150,17 +155,16 @@ def home():
 
 
 # =========================================
-# 4) GitHub رفع (FIXED + DEBUG)
+# 4) GitHub (معدل)
 # =========================================
 
 def upload_to_github(repo_name, code):
     token = os.getenv("GITHUB_TOKEN")
-    username = os.getenv("GITHUB_USERNAME")
 
-    if not token or not username:
+    if not token:
         return {
-            "error": "❌ التوكن أو اسم المستخدم غير موجود",
-            "solution": "تأكدي من Environment Variables"
+            "error": "❌ التوكن غير موجود",
+            "solution": "حطي GITHUB_TOKEN في Render"
         }
 
     headers = {
@@ -184,7 +188,7 @@ def upload_to_github(repo_name, code):
     # رفع الملف
     content = base64.b64encode(code.encode()).decode()
 
-    file_url = f"https://api.github.com/repos/{username}/{repo_name}/contents/app.py"
+    file_url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/contents/app.py"
 
     r2 = requests.put(file_url, json={
         "message": "initial commit",
@@ -199,7 +203,7 @@ def upload_to_github(repo_name, code):
 
     return {
         "success": True,
-        "repo": f"https://github.com/{username}/{repo_name}"
+        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo_name}"
     }
 
 
@@ -243,7 +247,7 @@ def build_and_deploy(req: RequestModel):
 
 
 # =========================================
-# 6) واجهة رئيسية
+# 6) الصفحة الرئيسية
 # =========================================
 
 @app.get("/", response_class=HTMLResponse)
