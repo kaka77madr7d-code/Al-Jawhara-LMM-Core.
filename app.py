@@ -162,7 +162,7 @@ def home():
 
 def upload_to_github(repo_name, code):
     token = os.getenv("GITHUB_TOKEN")
-    username = os.getenv("GITHUB_USERNAME")
+    username = os.getenv("kaka77madr7d-code")
 
     url = "https://api.github.com/user/repos"
 
