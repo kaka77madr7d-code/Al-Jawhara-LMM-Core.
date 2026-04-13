@@ -1,258 +1,172 @@
-# =========================================
-# Al-Jawhara LMM — FINAL VERSION (USERNAME FIX)
-# =========================================
-
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse
-import requests
-import os
-import base64
-import re
+import requests, base64, random, os
 
-app = FastAPI(title="Al-Jawhara LMM v5 🔥")
+app = FastAPI()
 
-# =========================================
-# ⚠️ هنا تحطين اسمك في GitHub
-# =========================================
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+RENDER_API_KEY = os.getenv("RENDER_API_KEY")
 GITHUB_USERNAME = "kaka77madr7d-code"
 
-# =========================================
-# 1) تحليل الأوزان
-# =========================================
+# =========================
+# 1. LMM (وزنك الحقيقي مبسط)
+# =========================
+def detect_pattern(word):
+    if word.startswith("ي") and "ّ" in word:
+        return "يُفَعِّل"
+    if word.startswith("أ"):
+        return "أَفْعَلَ"
+    if word.startswith("اس"):
+        return "اسْتَفْعَلَ"
+    return "UNKNOWN"
 
-PATTERNS = {
-    "يُفَعِّل": "DATA_PROCESSOR",
-    "فَعَّلَ": "DATA_PROCESSOR",
-    "مُتَفَعِّل": "UI_GENERATOR",
-    "مُتَفَاعِل": "NETWORK_SOCKET",
-    "تَفَاعَلَ": "NETWORK_SOCKET",
-    "مَفْعُول": "DATA_OBJECT",
-    "فَاعِل": "ACTIVE_AGENT",
-    "اسْتَفْعَلَ": "HTTP_CLIENT",
+PATTERN_TO_TASK = {
+    "يُفَعِّل": "PROCESS",
+    "أَفْعَلَ": "OUTPUT",
+    "اسْتَفْعَلَ": "SOURCE"
 }
 
-def detect_pattern(word):
-    w = re.sub(r'[\u064B-\u065F]', '', word)
+def infer(word):
+    p = detect_pattern(word)
+    return PATTERN_TO_TASK.get(p, "UNKNOWN")
 
-    if w.startswith("ي") and len(w) >= 5:
-        return "يُفَعِّل"
+# =========================
+# 2. Compiler
+# =========================
+def compile_pipeline(sentence):
+    pipeline = []
+    for w in sentence.split():
+        t = infer(w)
+        if t != "UNKNOWN":
+            pipeline.append(t)
+    return pipeline
 
-    if w.startswith("مت") and "ا" in w:
-        return "مُتَفَاعِل"
+# =========================
+# 3. توليد Backend
+# =========================
+def generate_backend(pipeline):
 
-    if w.startswith("مت"):
-        return "مُتَفَعِّل"
+    steps = ""
 
-    if w.startswith("است"):
-        return "اسْتَفْعَلَ"
+    for step in pipeline:
+        if step == "SOURCE":
+            steps += "data = {'value': 'data from source'}\n"
+        elif step == "PROCESS":
+            steps += "data['value'] = data['value'].upper()\n"
+        elif step == "OUTPUT":
+            steps += "result = data\n"
 
-    if "ّ" in word:
-        return "فَعَّلَ"
-
-    return None
-
-
-def infer_task(pattern):
-    return PATTERNS.get(pattern, "UNKNOWN")
-
-
-# =========================================
-# 2) UI
-# =========================================
-
-def generate_ui(title):
     return f"""
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<title>{title}</title>
-<style>
-body {{
-    background:#0d1117;
-    color:white;
-    font-family:Arial;
-    text-align:center;
-    padding:50px;
-}}
-.container {{
-    background:#161b22;
-    padding:30px;
-    border-radius:10px;
-}}
-input {{
-    padding:10px;
-    width:80%;
-    margin:10px;
-}}
-button {{
-    padding:10px 20px;
-    background:#c9a84c;
-    border:none;
-}}
-</style>
-</head>
-<body>
-
-<div class="container">
-<h1>{title}</h1>
-
-<input id="text" placeholder="اكتب هنا">
-<br>
-<button onclick="send()">تنفيذ</button>
-
-<p id="result"></p>
-
-</div>
-
-<script>
-async function send() {{
-    const text = document.getElementById("text").value;
-
-    const res = await fetch("/encrypt", {{
-        method:"POST",
-        headers:{{"Content-Type":"application/json"}},
-        body:JSON.stringify({{text}})
-    }});
-
-    const data = await res.json();
-    document.getElementById("result").innerText = data.result;
-}}
-</script>
-
-</body>
-</html>
-"""
-
-
-# =========================================
-# 3) API
-# =========================================
-
-def generate_api_code(title):
-    ui = generate_ui(title)
-
-    return f'''
 from fastapi import FastAPI
-from pydantic import BaseModel
 from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
-class Text(BaseModel):
-    text: str
+@app.get("/api")
+def run():
+    {steps}
+    return result if 'result' in locals() else data
 
-@app.post("/encrypt")
-def encrypt(data: Text):
-    result = "".join(chr(ord(c)+1) for c in data.text)
-    return {{"result": result}}
+@app.get("/")
+def ui():
+    return HTMLResponse(open("index.html").read())
+"""
 
-@app.get("/", response_class=HTMLResponse)
-def home():
-    return """{ui}"""
-'''
+# =========================
+# 4. توليد UI 🔥
+# =========================
+def generate_ui():
 
+    return """
+<html>
+<body style="background:#111;color:white;text-align:center;font-family:sans-serif">
+<h1>🔥 AI Generated App</h1>
+<button onclick="run()">تشغيل</button>
+<pre id="out"></pre>
 
-# =========================================
-# 4) GitHub (معدل)
-# =========================================
+<script>
+async function run(){
+ let r = await fetch('/api')
+ let d = await r.json()
+ document.getElementById('out').innerText = JSON.stringify(d, null, 2)
+}
+</script>
+</body>
+</html>
+"""
 
-def upload_to_github(repo_name, code):
-    token = os.getenv("GITHUB_TOKEN")
+# =========================
+# 5. GitHub
+# =========================
+def create_repo(repo):
+    url = "https://api.github.com/user/repos"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    r = requests.post(url, headers=headers, json={"name": repo})
+    return r.status_code == 201
 
-    if not token:
-        return {
-            "error": "❌ التوكن غير موجود",
-            "solution": "حطي GITHUB_TOKEN في Render"
-        }
+def push(repo, files):
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    for name, content in files.items():
+        requests.put(
+            f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{name}",
+            headers=headers,
+            json={
+                "message": f"add {name}",
+                "content": base64.b64encode(content.encode()).decode()
+            }
+        )
 
+# =========================
+# 6. Render Deploy 🔥
+# =========================
+def deploy_render(repo):
+
+    url = "https://api.render.com/v1/services"
     headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
+        "Authorization": f"Bearer {RENDER_API_KEY}",
+        "Content-Type": "application/json"
     }
 
-    # إنشاء repo
-    r = requests.post(
-        "https://api.github.com/user/repos",
-        json={"name": repo_name},
-        headers=headers
-    )
-
-    if r.status_code not in [200, 201]:
-        return {
-            "error": "❌ فشل إنشاء الريبو",
-            "details": r.json()
-        }
-
-    # رفع الملف
-    content = base64.b64encode(code.encode()).decode()
-
-    file_url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/contents/app.py"
-
-    r2 = requests.put(file_url, json={
-        "message": "initial commit",
-        "content": content
-    }, headers=headers)
-
-    if r2.status_code not in [200, 201]:
-        return {
-            "error": "❌ فشل رفع الملف",
-            "details": r2.json()
-        }
-
-    return {
-        "success": True,
-        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo_name}"
+    data = {
+        "type": "web_service",
+        "name": repo,
+        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}",
+        "branch": "main",
+        "startCommand": "uvicorn app:app --host 0.0.0.0 --port 10000"
     }
 
+    r = requests.post(url, headers=headers, json=data)
+    return r.json()
 
-# =========================================
-# 5) API
-# =========================================
-
-class RequestModel(BaseModel):
+# =========================
+# 7. API النهائي 🔥🔥🔥
+# =========================
+class Req(BaseModel):
     sentence: str
 
-
 @app.post("/build-and-deploy")
-def build_and_deploy(req: RequestModel):
-    words = req.sentence.split()
+def build(req: Req):
 
-    task_detected = "UNKNOWN"
+    pipeline = compile_pipeline(req.sentence)
 
-    for w in words:
-        pattern = detect_pattern(w)
-        task = infer_task(pattern)
+    repo = f"ai-full-{random.randint(1000,9999)}"
 
-        if task != "UNKNOWN":
-            task_detected = task
-            break
-
-    code = generate_api_code(req.sentence)
-
-    repo_name = "ai-ui-" + str(abs(hash(req.sentence)) % 10000)
-
-    result = upload_to_github(repo_name, code)
-
-    if not result or "error" in result:
-        return result
-
-    return {
-        "message": "🔥 تم بناء التطبيق بالكامل",
-        "task": task_detected,
-        "repo": result["repo"],
-        "next": "اربطه بـ Render"
+    files = {
+        "app.py": generate_backend(pipeline),
+        "index.html": generate_ui(),
+        "requirements.txt": "fastapi\nuvicorn\n"
     }
 
+    if not create_repo(repo):
+        return {"error": "GitHub failed"}
 
-# =========================================
-# 6) الصفحة الرئيسية
-# =========================================
+    push(repo, files)
 
-@app.get("/", response_class=HTMLResponse)
-def root():
-    return """
-    <h1>🔥 Al-Jawhara LMM</h1>
-    <p>اكتب جملة → يتحول لتطبيق كامل</p>
-    """
+    render = deploy_render(repo)
+
+    return {
+        "sentence": req.sentence,
+        "pipeline": pipeline,
+        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}",
+        "render": render
+    }
