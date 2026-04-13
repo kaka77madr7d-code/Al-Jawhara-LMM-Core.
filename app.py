@@ -1,172 +1,190 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import requests, base64, random, os
+import requests
+import os
+import time
+import random
+import string
 
 app = FastAPI()
 
+# 🔐 Environment
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 RENDER_API_KEY = os.getenv("RENDER_API_KEY")
+
+# 👇 حطي اسمك هنا فقط
 GITHUB_USERNAME = "kaka77madr7d-code"
 
 # =========================
-# 1. LMM (وزنك الحقيقي مبسط)
+# 🧠 تحليل لغوي (أوزان → مهام)
 # =========================
-def detect_pattern(word):
-    if word.startswith("ي") and "ّ" in word:
-        return "يُفَعِّل"
-    if word.startswith("أ"):
-        return "أَفْعَلَ"
-    if word.startswith("اس"):
-        return "اسْتَفْعَلَ"
-    return "UNKNOWN"
 
-PATTERN_TO_TASK = {
-    "يُفَعِّل": "PROCESS",
-    "أَفْعَلَ": "OUTPUT",
-    "اسْتَفْعَلَ": "SOURCE"
+PATTERN_MAP = {
+    "يستخرج": "HTTP_CLIENT",
+    "يعالج": "DATA_PROCESSOR",
+    "يشفر": "DATA_PROCESSOR",
+    "يعرض": "UI_GENERATOR",
+    "يرسل": "FACTORY"
 }
 
-def infer(word):
-    p = detect_pattern(word)
-    return PATTERN_TO_TASK.get(p, "UNKNOWN")
-
-# =========================
-# 2. Compiler
-# =========================
-def compile_pipeline(sentence):
+def analyze_sentence(sentence: str):
+    words = sentence.split()
     pipeline = []
-    for w in sentence.split():
-        t = infer(w)
-        if t != "UNKNOWN":
-            pipeline.append(t)
+
+    for w in words:
+        for key in PATTERN_MAP:
+            if key in w:
+                pipeline.append(PATTERN_MAP[key])
+
     return pipeline
 
 # =========================
-# 3. توليد Backend
+# 🧠 GitHub
 # =========================
-def generate_backend(pipeline):
 
-    steps = ""
+def create_github_repo(repo_name):
 
-    for step in pipeline:
-        if step == "SOURCE":
-            steps += "data = {'value': 'data from source'}\n"
-        elif step == "PROCESS":
-            steps += "data['value'] = data['value'].upper()\n"
-        elif step == "OUTPUT":
-            steps += "result = data\n"
+    url = "https://api.github.com/user/repos"
 
-    return f"""
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}"
+    }
+
+    data = {
+        "name": repo_name,
+        "private": False
+    }
+
+    r = requests.post(url, json=data, headers=headers)
+
+    if r.status_code not in [200, 201]:
+        return None, r.text
+
+    return r.json()["clone_url"], None
+
+
+def push_files(repo_name):
+
+    url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/contents/app.py"
+
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}"
+    }
+
+    code = """
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-
 app = FastAPI()
 
-@app.get("/api")
-def run():
-    {steps}
-    return result if 'result' in locals() else data
-
 @app.get("/")
-def ui():
-    return HTMLResponse(open("index.html").read())
+def home():
+    return {"message": "AI Generated App 🚀"}
 """
 
-# =========================
-# 4. توليد UI 🔥
-# =========================
-def generate_ui():
+    import base64
+    content = base64.b64encode(code.encode()).decode()
 
-    return """
-<html>
-<body style="background:#111;color:white;text-align:center;font-family:sans-serif">
-<h1>🔥 AI Generated App</h1>
-<button onclick="run()">تشغيل</button>
-<pre id="out"></pre>
+    data = {
+        "message": "init app",
+        "content": content
+    }
 
-<script>
-async function run(){
- let r = await fetch('/api')
- let d = await r.json()
- document.getElementById('out').innerText = JSON.stringify(d, null, 2)
-}
-</script>
-</body>
-</html>
-"""
+    r = requests.put(url, json=data, headers=headers)
+
+    return r.status_code in [200, 201]
+
 
 # =========================
-# 5. GitHub
+# 🧠 Render
 # =========================
-def create_repo(repo):
-    url = "https://api.github.com/user/repos"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    r = requests.post(url, headers=headers, json={"name": repo})
-    return r.status_code == 201
 
-def push(repo, files):
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    for name, content in files.items():
-        requests.put(
-            f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo}/contents/{name}",
-            headers=headers,
-            json={
-                "message": f"add {name}",
-                "content": base64.b64encode(content.encode()).decode()
-            }
-        )
+def get_render_owner_id():
+    url = "https://api.render.com/v1/owners"
 
-# =========================
-# 6. Render Deploy 🔥
-# =========================
-def deploy_render(repo):
+    headers = {
+        "Authorization": f"Bearer {RENDER_API_KEY}"
+    }
+
+    r = requests.get(url, headers=headers)
+
+    if r.status_code != 200:
+        return None
+
+    return r.json()[0]["id"]
+
+
+def create_render_service(repo_url, name):
+
+    owner_id = get_render_owner_id()
 
     url = "https://api.render.com/v1/services"
+
     headers = {
         "Authorization": f"Bearer {RENDER_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    data = {
+    payload = {
         "type": "web_service",
-        "name": repo,
-        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}",
+        "name": name,
+        "ownerId": owner_id,
+        "repo": repo_url,
         "branch": "main",
+        "runtime": "python",
+        "buildCommand": "pip install fastapi uvicorn",
         "startCommand": "uvicorn app:app --host 0.0.0.0 --port 10000"
     }
 
-    r = requests.post(url, headers=headers, json=data)
-    return r.json()
+    r = requests.post(url, json=payload, headers=headers)
+
+    if r.status_code != 201:
+        return None, r.text
+
+    data = r.json()
+    slug = data["service"]["slug"]
+
+    return f"https://{slug}.onrender.com", None
+
 
 # =========================
-# 7. API النهائي 🔥🔥🔥
+# 🚀 API الرئيسي
 # =========================
-class Req(BaseModel):
+
+class RequestData(BaseModel):
     sentence: str
 
+
 @app.post("/build-and-deploy")
-def build(req: Req):
+def build_and_deploy(req: RequestData):
 
-    pipeline = compile_pipeline(req.sentence)
+    sentence = req.sentence
 
-    repo = f"ai-full-{random.randint(1000,9999)}"
+    # 🧠 تحليل
+    pipeline = analyze_sentence(sentence)
 
-    files = {
-        "app.py": generate_backend(pipeline),
-        "index.html": generate_ui(),
-        "requirements.txt": "fastapi\nuvicorn\n"
-    }
+    # 🧠 اسم عشوائي
+    repo_name = "ai-app-" + ''.join(random.choices(string.digits, k=4))
 
-    if not create_repo(repo):
-        return {"error": "GitHub failed"}
+    # 🧠 GitHub
+    repo_url, err = create_github_repo(repo_name)
 
-    push(repo, files)
+    if err:
+        return {"error": "GitHub Failed", "details": err}
 
-    render = deploy_render(repo)
+    push_files(repo_name)
+
+    # 🧠 Render
+    live_url, err = create_render_service(repo_url, repo_name)
+
+    if err:
+        return {"error": "Render Failed", "details": err}
+
+    # ⏳ وقت البناء
+    time.sleep(10)
 
     return {
-        "sentence": req.sentence,
+        "sentence": sentence,
         "pipeline": pipeline,
-        "repo": f"https://github.com/{GITHUB_USERNAME}/{repo}",
-        "render": render
+        "repo": repo_url,
+        "live_url": live_url,
+        "message": "🚀 التطبيق قيد التشغيل"
     }
